@@ -162,6 +162,7 @@ void loop() {
     servoArm.write(160);
     servoArm.detach();
     //add stepper motor or left/right movement
+    delay(500);
     state = DONE;
   }
   else {
