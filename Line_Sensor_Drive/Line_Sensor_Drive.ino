@@ -1,0 +1,155 @@
+
+#define CBUFFER_SIZE 100
+// Pins for all inputs, keep in mind the PWM defines must be on PWM pins
+// the default pins listed are the ones used on the Redbot (ROB-12097) with
+// the exception of STBY which the Redbot controls with a physical switch
+#define PWMA 13
+#define AIN2 12
+#define AIN1 11
+#define STBY 10
+#define BIN1 9
+#define BIN2 8
+#define PWMB 7
+
+#define PWMC 6
+#define CIN2 5
+#define CIN1 4
+// #define STBY 10
+#define DIN1 3
+#define DIN2 A5
+#define PWMD 2
+
+
+//state machine values
+#define BAD -1
+
+#define FORWARD 1
+#define BACKWARD 2
+#define LEFT 3
+#define RIGHT 4
+#define ROTATE_L 5
+#define ROTATE_R 6
+
+#include <SparkFun_TB6612.h>
+
+#include "Wire.h"
+#include "sensorbar.h"
+
+// Uncomment one of the four lines to match your SX1509's address
+//  pin selects. SX1509 breakout defaults to [0:0] (0x3E).
+const uint8_t SX1509_ADDRESS_BACK = 0x3E;  // SX1509 I2C address (00)
+//const byte SX1509_ADDRESS = 0x3F;  // SX1509 I2C address (01)
+//const byte SX1509_ADDRESS = 0x70;  // SX1509 I2C address (10)
+//const byte SX1509_ADDRESS = 0x71;  // SX1509 I2C address (11)
+
+SensorBar mySensorBar(SX1509_ADDRESS_BACK);
+
+CircularBuffer positionHistory(CBUFFER_SIZE);
+
+// these constants are used to allow you to make your motor configuration 
+// line up with function names like forward.  Value can be 1 or -1
+const int offsetA = -1;
+const int offsetB = 1;
+const int offsetC = -1;
+const int offsetD = 1;
+
+// Initializing motors.  The library will allow you to initialize as many
+// motors as you have memory for.  If you are using functions like forward
+// that take 2 motors as arguements you can either write new functions or
+// call the function more than once.
+Motor motor1 = Motor(AIN1, AIN2, PWMA, offsetA, STBY);
+Motor motor2 = Motor(BIN1, BIN2, PWMB, offsetB, STBY);
+Motor motor3 = Motor(CIN1, CIN2, PWMC, offsetC, STBY);
+Motor motor4 = Motor(DIN1, DIN2, PWMD, offsetD, STBY);
+
+void brake() {
+  motor1.brake();
+  motor2.brake();
+  motor3.brake();
+  motor4.brake();
+}
+
+void forward() {
+  forward(motor1, motor2, 255);
+  back(motor3, motor4, 255);
+}
+void backward() {
+  forward(motor3, motor4, 255);
+  back(motor1, motor2, 255);
+}
+void left() {
+  forward(motor2, motor3, 255);
+  back(motor1, motor4, 255);
+}
+void right() {
+  forward(motor1, motor4, 255);
+  back(motor2, motor3, 255);  
+}
+void rotate_l() {
+  forward(motor1, motor2, 255);
+  forward(motor3, motor4, 255);
+}
+void rotate_r() {
+  back(motor1, motor2, 255);
+  back(motor3, motor4, 255);
+}
+
+void setup() {
+  Serial.begin(9600);  // start serial for output
+  Serial.println("Program started.");
+  Serial.println();
+  // put your setup code here, to run once:
+
+  /* setup line sensor arrays */
+  //For this demo, the IR will only be turned on during reads.
+  mySensorBar.setBarStrobe();
+  //Other option: Command to run all the time
+  //mySensorBar.clearBarStrobe();
+
+  //Default dark on light
+  mySensorBar.clearInvertBits();
+  //Other option: light line on dark
+  //mySensorBar.setInvertBits();
+  
+  //Don't forget to call .begin() to get the bar ready.  This configures HW.
+  uint8_t returnStatus = mySensorBar.begin();
+  if(returnStatus)
+  {
+    Serial.println("sx1509 IC communication OK");
+  }
+  else
+  {
+    Serial.println("sx1509 IC communication FAILED!");
+    while(1);
+  }
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+  uint8_t rawValue = mySensorBar.getRaw();
+
+  if(rawValue == 0xFF) {
+    forward();
+  }
+  else {
+    backward();
+  }
+    //Print the binary value to the serial buffer.
+  Serial.print("Bin value of input: ");
+  for( int i = 7; i >= 0; i-- )
+  {
+    Serial.print((rawValue >> i) & 0x01);
+  }
+  Serial.println("b");
+
+  //Print the hex value to the serial buffer.  
+  Serial.print("Hex value of bar: 0x");
+  if(rawValue < 0x10) //Serial.print( , HEX) doesn't pad zeros. Do it here
+  {
+    //Pad a 0;
+    Serial.print("0");
+  }
+  Serial.println(rawValue, HEX);
+  delay(500);
+  
+}
