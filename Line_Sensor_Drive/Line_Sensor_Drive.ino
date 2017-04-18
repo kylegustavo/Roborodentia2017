@@ -30,19 +30,25 @@
 #define ROTATE_L 5
 #define ROTATE_R 6
 
+#define APPROACH_RINGS 1
+#define PICKUP_RINGS 2
+
+#define DONE 10
+
 #include <SparkFun_TB6612.h>
+#include <Servo.h>
 
 #include "Wire.h"
 #include "sensorbar.h"
 
 // Uncomment one of the four lines to match your SX1509's address
 //  pin selects. SX1509 breakout defaults to [0:0] (0x3E).
-const uint8_t SX1509_ADDRESS_BACK = 0x3E;  // SX1509 I2C address (00)
+const uint8_t SX1509_ADDRESS_FRONT = 0x3E;  // SX1509 I2C address (00)
 //const byte SX1509_ADDRESS = 0x3F;  // SX1509 I2C address (01)
 //const byte SX1509_ADDRESS = 0x70;  // SX1509 I2C address (10)
 //const byte SX1509_ADDRESS = 0x71;  // SX1509 I2C address (11)
 
-SensorBar mySensorBar(SX1509_ADDRESS_BACK);
+SensorBar SensorBarFront(SX1509_ADDRESS_FRONT);
 
 CircularBuffer positionHistory(CBUFFER_SIZE);
 
@@ -62,6 +68,14 @@ Motor motor2 = Motor(BIN1, BIN2, PWMB, offsetB, STBY);
 Motor motor3 = Motor(CIN1, CIN2, PWMC, offsetC, STBY);
 Motor motor4 = Motor(DIN1, DIN2, PWMD, offsetD, STBY);
 
+int state = FORWARD;
+
+int armPin = 22;
+int tiltPin = 24;
+ 
+Servo servoArm;
+Servo servoTilt;
+
 void brake() {
   motor1.brake();
   motor2.brake();
@@ -69,25 +83,25 @@ void brake() {
   motor4.brake();
 }
 
-void forward() {
-  forward(motor1, motor2, 255);
-  back(motor3, motor4, 255);
+void forward(int spdL, int spdR) {
+  forward(motor1, motor2, spdL);
+  back(motor3, motor4, spdR);
 }
-void backward() {
-  forward(motor3, motor4, 255);
-  back(motor1, motor2, 255);
+void backward(int spd) {
+  forward(motor3, motor4, spd);
+  back(motor1, motor2, spd);
 }
-void left() {
-  forward(motor2, motor3, 255);
-  back(motor1, motor4, 255);
+void left(int spd) {
+  forward(motor2, motor3, spd);
+  back(motor1, motor4, spd);
 }
-void right() {
-  forward(motor1, motor4, 255);
-  back(motor2, motor3, 255);  
+void right(int spd) {
+  forward(motor1, motor4, spd);
+  back(motor2, motor3, spd);  
 }
-void rotate_l() {
-  forward(motor1, motor2, 255);
-  forward(motor3, motor4, 255);
+void rotate_l(int spd) {
+  forward(motor1, motor2, spd);
+  forward(motor3, motor4, spd);
 }
 void rotate_r() {
   back(motor1, motor2, 255);
@@ -95,6 +109,8 @@ void rotate_r() {
 }
 
 void setup() {
+  servoArm.attach(armPin);
+  servoTilt.attach(tiltPin); 
   Serial.begin(9600);  // start serial for output
   Serial.println("Program started.");
   Serial.println();
@@ -102,17 +118,17 @@ void setup() {
 
   /* setup line sensor arrays */
   //For this demo, the IR will only be turned on during reads.
-  mySensorBar.setBarStrobe();
+  SensorBarFront.setBarStrobe();
   //Other option: Command to run all the time
   //mySensorBar.clearBarStrobe();
 
   //Default dark on light
-  mySensorBar.clearInvertBits();
+  SensorBarFront.clearInvertBits();
   //Other option: light line on dark
   //mySensorBar.setInvertBits();
   
   //Don't forget to call .begin() to get the bar ready.  This configures HW.
-  uint8_t returnStatus = mySensorBar.begin();
+  uint8_t returnStatus = SensorBarFront.begin();
   if(returnStatus)
   {
     Serial.println("sx1509 IC communication OK");
@@ -126,13 +142,30 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  uint8_t rawValue = mySensorBar.getRaw();
+  uint8_t rawValue = SensorBarFront.getRaw();
 
-  if(rawValue == 0xFF) {
-    forward();
+  if(state == APPROACH_RINGS) {
+    if((rawValue & 1 << 4) && (rawValue & 1 << 3)) {
+      forward(255, 255);
+    }
+    else if(rawValue & 1 << 4) {
+      forward(225, 255);
+    }
+    else if(rawValue & 1 << 3) {
+      forward(255, 225);
+    }
+    else {
+      state = PICKUP_RINGS; 
+    }
+  }
+  else if(state == PICKUP_RINGS) {
+    servoArm.write(160);
+    servoArm.detach();
+    //add stepper motor or left/right movement
+    state = DONE;
   }
   else {
-    backward();
+    
   }
     //Print the binary value to the serial buffer.
   Serial.print("Bin value of input: ");
