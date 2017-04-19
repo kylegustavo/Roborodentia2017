@@ -51,11 +51,12 @@
 // Uncomment one of the four lines to match your SX1509's address
 //  pin selects. SX1509 breakout defaults to [0:0] (0x3E).
 const uint8_t SX1509_ADDRESS_FRONT = 0x3E;  // SX1509 I2C address (00)
-//const byte SX1509_ADDRESS = 0x3F;  // SX1509 I2C address (01)
+const uint8_t SX1509_ADDRESS_BACK = 0x3F;  // SX1509 I2C address (01)
 //const byte SX1509_ADDRESS = 0x70;  // SX1509 I2C address (10)
 //const byte SX1509_ADDRESS = 0x71;  // SX1509 I2C address (11)
 
 SensorBar SensorBarFront(SX1509_ADDRESS_FRONT);
+SensorBar SensorBarBack(SX1509_ADDRESS_BACK);
 
 CircularBuffer positionHistory(CBUFFER_SIZE);
 
@@ -142,6 +143,33 @@ int forwardUntilChange() {
   return 0;
 }
 
+int backwardUntilChange() {
+  uint8_t rawValue = SensorBarBack.getRaw();
+  //using middle 4 line sensors for now
+  if((rawValue & 0x3C) == 0x00) {
+    //all white, go full speed
+    backward(255, 255);
+  }
+  else if((rawValue & 0x3C) == 0x3C) {
+    //black horizontal line seen, stop and transition
+    brake();
+    return CHANGE_STATE;
+  }
+  else if(rawValue & 1 << 4) {
+    backward(215, 255);
+  }
+  else if(rawValue & 1 << 3) {
+    backward(255, 215);
+  }
+  else if(rawValue & 1 << 5) {
+    backward(195, 255);
+  }
+  else if(rawValue & 1 << 2) {
+    backward(255, 195);
+  }
+  return 0;
+}
+
 void turnRight() {
   right(200); 
   delay(1500);
@@ -162,11 +190,13 @@ void setup() {
   /* setup line sensor arrays */
   //For this demo, the IR will only be turned on during reads.
   SensorBarFront.setBarStrobe();
+  SensorBarBack.setBarStrobe();
   //Other option: Command to run all the time
   //mySensorBar.clearBarStrobe();
 
   //Default dark on light
   SensorBarFront.clearInvertBits();
+  SensorBarBack.clearInvertBits();
   //Other option: light line on dark
   //mySensorBar.setInvertBits();
   
@@ -201,6 +231,9 @@ void loop() {
       break;
 
     case APPROACH_FLAG: //drive backwards
+      if(backwardUntilChange() == CHANGE_STATE) {
+        state = PICKUP_RINGS;
+      }
       break;
 
     case LEAVE_FLAG:
