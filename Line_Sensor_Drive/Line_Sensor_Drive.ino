@@ -94,9 +94,9 @@ void forward(int spdL, int spdR) {
   forward(motor1, motor2, spdL);
   back(motor3, motor4, spdR);
 }
-void backward(int spd) {
-  forward(motor3, motor4, spd);
-  back(motor1, motor2, spd);
+void backward(int spdL, int spdR) {
+  forward(motor3, motor4, spdR);
+  back(motor1, motor2, spdL);
 }
 void left(int spd) {
   forward(motor2, motor3, spd);
@@ -117,19 +117,36 @@ void rotate_r() {
 
 int forwardUntilChange() {
   uint8_t rawValue = SensorBarFront.getRaw();
-  if((rawValue & 1 << 4) && (rawValue & 1 << 3)) {
+  //using middle 4 line sensors for now
+  if((rawValue & 0x3C) == 0x3C) {
+    //all white, go full speed
     forward(255, 255);
   }
-  else if(rawValue & 1 << 4) {
-    forward(225, 255);
-  }
-  else if(rawValue & 1 << 3) {
-    forward(255, 225);
-  }
-  else {
+  else if((rawValue & 0x3C) == 0x00) {
+    //black horizontal line seen, stop and transition
+    brake();
     return CHANGE_STATE;
   }
+  else if(!(rawValue & 1 << 4)) {
+    forward(235, 255);
+  }
+  else if(!(rawValue & 1 << 3)) {
+    forward(255, 235);
+  }
+  else if(!(rawValue & 1 << 5)) {
+    forward(225, 255);
+  }
+  else if(!(rawValue & 1 << 2)) {
+    forward(255, 225);
+  }
   return 0;
+}
+
+void turnRight() {
+  right(200); 
+  delay(1500);
+  brake();
+   
 }
 
 void setup() {
@@ -188,7 +205,7 @@ void loop() {
       if(forwardUntilChange() == CHANGE_STATE) {
         state = APPROACH_DROP;
       }
-      
+      turnRight();
       break;
 
     case APPROACH_DROP:
@@ -198,12 +215,19 @@ void loop() {
       break;
 
     case DROP:
+      servoTilt.write(80);
+      delay(1500);
+      servoTilt.write(100);
+      delay(1500);
+      state = LEAVE_DROP;
       break;
 
     case LEAVE_DROP:
+      state = APPROACH_RINGS;
       break;
 
     default:
+      break;
   }
   
 }
