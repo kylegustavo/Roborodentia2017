@@ -174,7 +174,12 @@ void turnRight() {
   right(200); 
   delay(1500);
   brake();
-   
+}
+
+void turnLeft() {
+  left(200);
+  delay(1500);
+  brake();
 }
 
 void setup() {
@@ -232,7 +237,7 @@ void loop() {
 
     case APPROACH_FLAG: //drive backwards
       if(backwardUntilChange() == CHANGE_STATE) {
-        state = PICKUP_RINGS;
+        state = LEAVE_FLAG;
       }
       break;
 
@@ -258,7 +263,10 @@ void loop() {
       break;
 
     case LEAVE_DROP:
-      state = APPROACH_RINGS;
+      if(backwardUntilChange() == CHANGE_STATE) {
+        state = APPROACH_RINGS;
+      }
+      turnLeft();
       break;
 
     default:
