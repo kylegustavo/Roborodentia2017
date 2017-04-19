@@ -32,6 +32,13 @@
 
 #define APPROACH_RINGS 1
 #define PICKUP_RINGS 2
+#define APPROACH_FLAG 3
+#define LEAVE_FLAG 4
+#define APPROACH_DROP 5
+#define DROP 6
+#define LEAVE_DROP 7
+
+#define CHANGE_STATE 1
 
 #define DONE 10
 
@@ -108,6 +115,23 @@ void rotate_r() {
   back(motor3, motor4, 255);
 }
 
+int forwardUntilChange() {
+  uint8_t rawValue = SensorBarFront.getRaw();
+  if((rawValue & 1 << 4) && (rawValue & 1 << 3)) {
+    forward(255, 255);
+  }
+  else if(rawValue & 1 << 4) {
+    forward(225, 255);
+  }
+  else if(rawValue & 1 << 3) {
+    forward(255, 225);
+  }
+  else {
+    return CHANGE_STATE;
+  }
+  return 0;
+}
+
 void setup() {
   servoArm.attach(armPin);
   servoTilt.attach(tiltPin); 
@@ -141,49 +165,45 @@ void setup() {
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  uint8_t rawValue = SensorBarFront.getRaw();
+  
+  switch(state) {
+    case APPROACH_RINGS:
+      if(forwardUntilChange() == CHANGE_STATE) {
+        state = PICKUP_RINGS;
+      }
+      break;
 
-  if(state == APPROACH_RINGS) {
-    if((rawValue & 1 << 4) && (rawValue & 1 << 3)) {
-      forward(255, 255);
-    }
-    else if(rawValue & 1 << 4) {
-      forward(225, 255);
-    }
-    else if(rawValue & 1 << 3) {
-      forward(255, 225);
-    }
-    else {
-      state = PICKUP_RINGS; 
-    }
-  }
-  else if(state == PICKUP_RINGS) {
-    servoArm.write(160);
-    servoArm.detach();
-    //add stepper motor or left/right movement
-    delay(500);
-    state = DONE;
-  }
-  else {
-    
-  }
-    //Print the binary value to the serial buffer.
-  Serial.print("Bin value of input: ");
-  for( int i = 7; i >= 0; i-- )
-  {
-    Serial.print((rawValue >> i) & 0x01);
-  }
-  Serial.println("b");
+    case PICKUP_RINGS:
+      servoArm.write(160);
+      servoArm.detach();
+      /*add stepper motor or left/right movement */
+      delay(500);
+      state = APPROACH_FLAG;
+      break;
 
-  //Print the hex value to the serial buffer.  
-  Serial.print("Hex value of bar: 0x");
-  if(rawValue < 0x10) //Serial.print( , HEX) doesn't pad zeros. Do it here
-  {
-    //Pad a 0;
-    Serial.print("0");
+    case APPROACH_FLAG: //drive backwards
+      break;
+
+    case LEAVE_FLAG:
+      if(forwardUntilChange() == CHANGE_STATE) {
+        state = APPROACH_DROP;
+      }
+      
+      break;
+
+    case APPROACH_DROP:
+      if(forwardUntilChange() == CHANGE_STATE) {
+        state = DROP;
+      }
+      break;
+
+    case DROP:
+      break;
+
+    case LEAVE_DROP:
+      break;
+
+    default:
   }
-  Serial.println(rawValue, HEX);
-  delay(500);
   
 }
