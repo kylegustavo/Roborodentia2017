@@ -118,25 +118,25 @@ void rotate_r() {
 int forwardUntilChange() {
   uint8_t rawValue = SensorBarFront.getRaw();
   //using middle 4 line sensors for now
-  if((rawValue & 0x3C) == 0x3C) {
+  if((rawValue & 0x3C) == 0x00) {
     //all white, go full speed
     forward(255, 255);
   }
-  else if((rawValue & 0x3C) == 0x00) {
+  else if((rawValue & 0x3C) == 0x3C) {
     //black horizontal line seen, stop and transition
     brake();
     return CHANGE_STATE;
   }
-  else if(!(rawValue & 1 << 4)) {
+  else if(rawValue & 1 << 4) {
     forward(215, 255);
   }
-  else if(!(rawValue & 1 << 3)) {
+  else if(rawValue & 1 << 3) {
     forward(255, 215);
   }
-  else if(!(rawValue & 1 << 5)) {
+  else if(rawValue & 1 << 5) {
     forward(195, 255);
   }
-  else if(!(rawValue & 1 << 2)) {
+  else if(rawValue & 1 << 2) {
     forward(255, 195);
   }
   return 0;
