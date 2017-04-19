@@ -75,7 +75,7 @@ Motor motor2 = Motor(BIN1, BIN2, PWMB, offsetB, STBY);
 Motor motor3 = Motor(CIN1, CIN2, PWMC, offsetC, STBY);
 Motor motor4 = Motor(DIN1, DIN2, PWMD, offsetD, STBY);
 
-int state = FORWARD;
+int state = APPROACH_RINGS;
 
 int armPin = 22;
 int tiltPin = 24;
@@ -91,12 +91,12 @@ void brake() {
 }
 
 void forward(int spdL, int spdR) {
-  forward(motor1, motor2, spdL);
-  back(motor3, motor4, spdR);
-}
-void backward(int spdL, int spdR) {
   forward(motor3, motor4, spdR);
   back(motor1, motor2, spdL);
+}
+void backward(int spdL, int spdR) {
+  forward(motor1, motor2, spdL);
+  back(motor3, motor4, spdR);
 }
 void left(int spd) {
   forward(motor2, motor3, spd);
@@ -128,16 +128,16 @@ int forwardUntilChange() {
     return CHANGE_STATE;
   }
   else if(!(rawValue & 1 << 4)) {
-    forward(235, 255);
+    forward(215, 255);
   }
   else if(!(rawValue & 1 << 3)) {
-    forward(255, 235);
+    forward(255, 215);
   }
   else if(!(rawValue & 1 << 5)) {
-    forward(225, 255);
+    forward(195, 255);
   }
   else if(!(rawValue & 1 << 2)) {
-    forward(255, 225);
+    forward(255, 195);
   }
   return 0;
 }
@@ -152,6 +152,8 @@ void turnRight() {
 void setup() {
   servoArm.attach(armPin);
   servoTilt.attach(tiltPin); 
+  servoArm.write(20);
+  delay(200);
   Serial.begin(9600);  // start serial for output
   Serial.println("Program started.");
   Serial.println();
@@ -192,9 +194,9 @@ void loop() {
 
     case PICKUP_RINGS:
       servoArm.write(160);
-      servoArm.detach();
       /*add stepper motor or left/right movement */
-      delay(500);
+      delay(1000);
+      servoArm.detach();
       state = APPROACH_FLAG;
       break;
 
