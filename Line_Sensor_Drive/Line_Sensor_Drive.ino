@@ -37,6 +37,7 @@
 #define APPROACH_DROP 5
 #define DROP 6
 #define LEAVE_DROP 7
+#define SPECIAL_LEAVE_RINGS 11
 
 #define CHANGE_STATE 1
 
@@ -92,12 +93,12 @@ void brake() {
 }
 
 void forward(int spdL, int spdR) {
-  forward(motor3, motor4, spdR);
-  back(motor1, motor2, spdL);
+  forward(motor1, motor2, spdR);
+  back(motor3, motor4, spdL);
 }
 void backward(int spdL, int spdR) {
-  forward(motor1, motor2, spdL);
-  back(motor3, motor4, spdR);
+  forward(motor3, motor4, spdL);
+  back(motor1, motor2, spdR);
 }
 void left(int spd) {
   forward(motor2, motor3, spd);
@@ -111,9 +112,9 @@ void rotate_l(int spd) {
   forward(motor1, motor2, spd);
   forward(motor3, motor4, spd);
 }
-void rotate_r() {
-  back(motor1, motor2, 255);
-  back(motor3, motor4, 255);
+void rotate_r(int spd) {
+  back(motor1, motor2, spd);
+  back(motor3, motor4, spd);
 }
 
 int forwardUntilChange() {
@@ -129,16 +130,16 @@ int forwardUntilChange() {
     return CHANGE_STATE;
   }
   else if(rawValue & 1 << 4) {
-    forward(215, 255);
+    forward(185, 255);
   }
   else if(rawValue & 1 << 3) {
-    forward(255, 215);
+    forward(255, 185);
   }
   else if(rawValue & 1 << 5) {
-    forward(195, 255);
+    forward(150, 255);
   }
   else if(rawValue & 1 << 2) {
-    forward(255, 195);
+    forward(255, 150);
   }
   return 0;
 }
@@ -155,37 +156,50 @@ int backwardUntilChange() {
     brake();
     return CHANGE_STATE;
   }
-  else if(rawValue & 1 << 4) {
-    backward(215, 255);
-  }
   else if(rawValue & 1 << 3) {
-    backward(255, 215);
+    backward(185, 255);
   }
-  else if(rawValue & 1 << 5) {
-    backward(195, 255);
+  else if(rawValue & 1 << 4) {
+    backward(255, 185);
   }
   else if(rawValue & 1 << 2) {
-    backward(255, 195);
+    backward(150, 255);
+  }
+  else if(rawValue & 1 << 5) {
+    backward(255, 150);
   }
   return 0;
 }
 
 void turnRight() {
-  right(200); 
+  backward(255,255);
+  delay(500);
+  rotate_r(200); 
   delay(1500);
+  while(!(SensorBarFront.getRaw() & 1 << 4)) {
+    rotate_r(255);
+  }
   brake();
+  delay(100);
 }
 
 void turnLeft() {
-  left(200);
+  backward(255,255);
+  delay(500);
+  rotate_l(255);
   delay(1500);
+  while(!(SensorBarFront.getRaw() & 1 << 4)) {
+    rotate_l(255);
+  }
   brake();
+  delay(100);
 }
 
 void setup() {
   servoArm.attach(armPin);
   servoTilt.attach(tiltPin); 
-  servoArm.write(20);
+  servoArm.write(20); //start in down position
+  servoTilt.write(100); //start with tilt up
   delay(200);
   Serial.begin(9600);  // start serial for output
   Serial.println("Program started.");
@@ -225,27 +239,44 @@ void loop() {
       if(forwardUntilChange() == CHANGE_STATE) {
         state = PICKUP_RINGS;
       }
+      Serial.println("Approach Rings");
       break;
 
     case PICKUP_RINGS:
+      forward(255,255);
+      delay(500);
+      brake();
+      delay(200);
       servoArm.write(160);
       /*add stepper motor or left/right movement */
       delay(1000);
       servoArm.detach();
-      state = APPROACH_FLAG;
+      servoTilt.write(120);
+      delay(700);
+      backward(255,255);
+      delay(700);
+      
+      state = SPECIAL_LEAVE_RINGS;
       break;
 
     case APPROACH_FLAG: //drive backwards
       if(backwardUntilChange() == CHANGE_STATE) {
-        state = LEAVE_FLAG;
+        state = APPROACH_RINGS;
       }
       break;
 
     case LEAVE_FLAG:
       if(forwardUntilChange() == CHANGE_STATE) {
         state = APPROACH_DROP;
+        turnLeft();
       }
-      turnRight();
+      break;
+
+    case SPECIAL_LEAVE_RINGS: //special state to skip flag for now
+      if(backwardUntilChange() == CHANGE_STATE) {
+        state = APPROACH_DROP;
+        turnLeft();
+      } 
       break;
 
     case APPROACH_DROP:
@@ -255,18 +286,30 @@ void loop() {
       break;
 
     case DROP:
-      servoTilt.write(80);
-      delay(1500);
-      servoTilt.write(100);
-      delay(1500);
+      forward(255,255);
+      delay(800);
+      brake();
+      delay(50);
+      backward(50,50);
+      delay(150);
+      brake();
+      for (int i = 0; i <= 1; i++) {
+        servoTilt.write(80);
+        delay(1000);
+        servoTilt.write(100);
+        delay(1000);
+      }
+      backward(255,255);
+      delay(1000);
+      brake();
       state = LEAVE_DROP;
       break;
 
     case LEAVE_DROP:
       if(backwardUntilChange() == CHANGE_STATE) {
         state = APPROACH_RINGS;
+        turnRight();
       }
-      turnLeft();
       break;
 
     default:

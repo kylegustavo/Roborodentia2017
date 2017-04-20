@@ -91,7 +91,7 @@ void loop()
       case FORWARD:
         forward(motor1, motor2, 255);
         back(motor3, motor4, 255);
-        direction = BACKWARD;
+        direction = FORWARD;
       break;
       
       case BACKWARD:
