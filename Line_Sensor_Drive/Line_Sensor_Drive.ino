@@ -32,8 +32,10 @@
 
 #define APPROACH_RINGS 1
 #define PICKUP_RINGS 2
-#define MECANUM_PICKUP_LR_PEGS 22
-#define STEPPER_PICKUP_LR_PEGS 23
+#define PICKUP_LR_PEGS 22
+#define STEPPER 23
+#define MECANUM 24
+//#define STEPPER_PICKUP_LR_PEGS 23
 #define APPROACH_FLAG 3
 #define LEAVE_FLAG 4
 #define SPECIAL_LEAVE_RINGS 11
@@ -53,9 +55,12 @@
 #define FLIP_ONCE 0
 #define FLIP_ALWAYS 1
 
+#define ONE_ROTATION 1600
+
 #include <SparkFun_TB6612.h>
 #include <Servo.h>
 #include <DualMC33926MotorShield.h>
+#include <AccelStepper.h>
 
 #include "Wire.h"
 #include "sensorbar.h"
@@ -82,19 +87,24 @@ const int offsetD = 1;
 Motor motor1 = Motor(AIN1, AIN2, PWMA, offsetA, STBY);
 Motor motor2 = Motor(BIN1, BIN2, PWMB, offsetB, STBY);
 DualMC33926MotorShield md; //use for Motor 3 and 4
+AccelStepper stepper(AccelStepper::DRIVER, 9, 8);
 //Motor motor3 = Motor(CIN1, CIN2, PWMC, offsetC, STBY);
 //Motor motor4 = Motor(DIN1, DIN2, PWMD, offsetD, STBY);
 
 int state = APPROACH_RINGS;
 int flagFlipped = 0;
 int mode = FLIP_ALWAYS;
+int pos = ONE_ROTATION * 1.1;
+int sleep;
 
 const int armPin = 22;
 const int tiltPin = 24;
 const int buttonPin = 26;
 const int flipperPin = 28;
 const int modePin = 30;
-const int stepperPin = 44;
+const int stepperDir = 32;
+const int stepperStep = 34;
+const int stepperSleep = 36;
  
 Servo servoArm;
 Servo servoTilt;
@@ -271,8 +281,19 @@ void flip(int val) {
   }
 }
 
-void mecanum() {
-    left(255); //left according to watcher
+void lr_pickup(int style) {
+    if (style == STEPPER) { //using stepper motor
+       pos = ONE_ROTATION * 1.1;
+       while(stepper.distanceToGo() != 0) {
+          stepper.run();
+          delay(1);
+       }
+       pos -= ONE_ROTATION * 2.2;
+    }
+    else { //using mecanum drive
+      left(255); //left according to watcher
+      delay(1000);
+    }
     servoTilt.write(105);
     servoArm.attach(armPin);
     delay(600);
@@ -289,8 +310,18 @@ void mecanum() {
     brake();
     servoTilt.write(120);
     
-    right(255); //right according to watcher
-    delay(1000);
+    if (style == STEPPER) {
+       while(stepper.distanceToGo() != 0) {
+          stepper.run();
+          delay(1);
+       }
+       pos += ONE_ROTATION * 1.1;
+       
+    }
+    else {
+       right(255); //right according to watcher
+       delay(1000);
+    }
     servoTilt.write(105);
     brake();
     servoArm.write(20);
@@ -303,8 +334,16 @@ void mecanum() {
     backward(255,255);
     delay(700);
     brake();
-    left(255);
-    delay(1000);
+    if (style == STEPPER) {
+       while(stepper.distanceToGo() != 0) {
+          stepper.run();
+          delay(1);
+       }
+    }
+    else {
+       left(255); //left according to watcher
+       delay(1000);
+    }
     brake();
 }
 
@@ -341,6 +380,8 @@ void setup() {
   SensorBarBack.clearInvertBits();
   //Other option: light line on dark
   //mySensorBar.setInvertBits();
+  stepper.setMaxSpeed(3000);
+  stepper.setAcceleration(1000);
   
   //Don't forget to call .begin() to get the bar ready.  This configures HW.
   uint8_t returnStatus = SensorBarFront.begin();
@@ -382,12 +423,12 @@ void loop() {
       brake();
       servoArm.detach();
       servoTilt.write(120);
-      state = MECANUM_PICKUP_LR_PEGS;
+      state = PICKUP_LR_PEGS;
       break;
 
-    case MECANUM_PICKUP_LR_PEGS:
+    case PICKUP_LR_PEGS:
       //use mecanum drive to pickup from left and right pegs
-      mecanum();
+      lr_pickup(STEPPER);
       servoArm.detach();
       servoTilt.write(120);
       if(flagFlipped && mode == FLIP_ONCE) {
@@ -397,10 +438,6 @@ void loop() {
         state = APPROACH_FLAG;
       }
       break;
-
-    case STEPPER_PICKUP_LR_PEGS:
-      
-    
 
     case APPROACH_FLAG: //drive backwards
       if(backwardUntilButton() == CHANGE_STATE) {
