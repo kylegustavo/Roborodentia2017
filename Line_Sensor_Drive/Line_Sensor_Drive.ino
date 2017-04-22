@@ -33,14 +33,15 @@
 #define APPROACH_RINGS 1
 #define PICKUP_RINGS 2
 #define MECANUM_PICKUP_LR_PEGS 22
+#define STEPPER_PICKUP_LR_PEGS 23
 #define APPROACH_FLAG 3
 #define LEAVE_FLAG 4
+#define SPECIAL_LEAVE_RINGS 11
 #define APPROACH_DROP 5
 #define APPROACH_BUMP 6
 #define DROP 7
 #define LEAVE_DROP_TO_BUMP 8
 #define LEAVE_BUMP 9
-#define SPECIAL_LEAVE_RINGS 11
 
 #define FLIP 0
 #define RESET_FLIP 1
@@ -49,18 +50,18 @@
 
 #define DONE 10
 
+#define FLIP_ONCE 0
+#define FLIP_ALWAYS 1
+
 #include <SparkFun_TB6612.h>
 #include <Servo.h>
+#include <DualMC33926MotorShield.h>
 
 #include "Wire.h"
 #include "sensorbar.h"
 
-// Uncomment one of the four lines to match your SX1509's address
-//  pin selects. SX1509 breakout defaults to [0:0] (0x3E).
 const uint8_t SX1509_ADDRESS_FRONT = 0x3E;  // SX1509 I2C address (00)
 const uint8_t SX1509_ADDRESS_BACK = 0x3F;  // SX1509 I2C address (01)
-//const byte SX1509_ADDRESS = 0x70;  // SX1509 I2C address (10)
-//const byte SX1509_ADDRESS = 0x71;  // SX1509 I2C address (11)
 
 SensorBar SensorBarFront(SX1509_ADDRESS_FRONT);
 SensorBar SensorBarBack(SX1509_ADDRESS_BACK);
@@ -80,15 +81,20 @@ const int offsetD = 1;
 // call the function more than once.
 Motor motor1 = Motor(AIN1, AIN2, PWMA, offsetA, STBY);
 Motor motor2 = Motor(BIN1, BIN2, PWMB, offsetB, STBY);
-Motor motor3 = Motor(CIN1, CIN2, PWMC, offsetC, STBY);
-Motor motor4 = Motor(DIN1, DIN2, PWMD, offsetD, STBY);
+DualMC33926MotorShield md; //use for Motor 3 and 4
+//Motor motor3 = Motor(CIN1, CIN2, PWMC, offsetC, STBY);
+//Motor motor4 = Motor(DIN1, DIN2, PWMD, offsetD, STBY);
 
 int state = APPROACH_RINGS;
+int flagFlipped = 0;
+int mode = FLIP_ALWAYS;
 
 const int armPin = 22;
 const int tiltPin = 24;
 const int buttonPin = 26;
 const int flipperPin = 28;
+const int modePin = 30;
+const int stepperPin = 44;
  
 Servo servoArm;
 Servo servoTilt;
@@ -97,33 +103,53 @@ Servo servoFlip;
 void brake() {
   motor1.brake();
   motor2.brake();
-  motor3.brake();
-  motor4.brake();
+  md.setM1Speed(0);
+  md.setM2Speed(0);
 }
 
 void forward(int spdL, int spdR) {
+  double spdM = 0 - 1.5686 * spdL;
   forward(motor1, motor2, spdR);
-  back(motor3, motor4, spdL);
+  md.setM1Speed((int)spdM);
+  md.setM2Speed((int)spdM);
+  //back(motor3, motor4, spdL);
 }
 void backward(int spdL, int spdR) {
-  forward(motor3, motor4, spdL);
+  //forward(motor3, motor4, spdL);
+  double spdM = 1.5686 * spdL;
+  md.setM1Speed((int)spdM);
+  md.setM2Speed((int)spdM);
   back(motor1, motor2, spdR);
 }
 void left(int spd) {
-  forward(motor2, motor3, spd);
-  back(motor1, motor4, spd);
+  double spdM = 1.5686 * spd;
+  //forward(motor2, motor3, spd);
+  //back(motor1, motor4, spd);
+  left(motor1, motor2, spd);
+  md.setM1Speed((int)spdM);
+  md.setM2Speed(0 - (int)spdM);
 }
 void right(int spd) {
-  forward(motor1, motor4, spd);
-  back(motor2, motor3, spd);  
+  double spdM = 1.5686 * spd;
+  //forward(motor1, motor4, spd);
+  //back(motor2, motor3, spd);
+  right(motor1, motor2, spd); 
+  md.setM1Speed(0 - (int)spdM);
+  md.setM2Speed((int)spdM); 
 }
 void rotate_l(int spd) {
+  double spdM = 1.5686 * spd;
   forward(motor1, motor2, spd);
-  forward(motor3, motor4, spd);
+  md.setM1Speed((int)spdM);
+  md.setM2Speed((int)spdM);
+  //forward(motor3, motor4, spd);
 }
 void rotate_r(int spd) {
+  double spdM = 0 - 1.5686 * spd;
   back(motor1, motor2, spd);
-  back(motor3, motor4, spd);
+  md.setM1Speed((int)spdM);
+  md.setM2Speed((int)spdM);
+  //back(motor3, motor4, spd);
 }
 
 int forwardUntilChange() {
@@ -207,8 +233,13 @@ int backwardUntilButton() {
   return 0;
 }
 
-void turnRight() {
-  forward(255,255);
+void turnRight(int isForward) {
+  if (isForward) {
+    forward(255,255);
+  }
+  else {
+    backward(255,255);
+  }
   delay(500);
   rotate_r(200); 
   delay(1500);
@@ -240,12 +271,55 @@ void flip(int val) {
   }
 }
 
+void mecanum() {
+    left(255); //left according to watcher
+    servoTilt.write(105);
+    servoArm.attach(armPin);
+    delay(600);
+    brake();
+    servoArm.write(20);
+    delay(500);
+    forward(255,255);
+    delay(700);
+    brake();
+    servoArm.write(160);
+    delay(400);
+    backward(255,255);
+    delay(700);
+    brake();
+    servoTilt.write(120);
+    
+    right(255); //right according to watcher
+    delay(1000);
+    servoTilt.write(105);
+    brake();
+    servoArm.write(20);
+    delay(500);
+    forward(255,255);
+    delay(700);
+    brake();
+    servoArm.write(160);
+    delay(400);
+    backward(255,255);
+    delay(700);
+    brake();
+    left(255);
+    delay(1000);
+    brake();
+}
+
 void setup() {
   servoArm.attach(armPin);
   servoTilt.attach(tiltPin);
   servoFlip.attach(flipperPin);
   servoFlip.write(20);
+  md.init();
   pinMode(buttonPin, INPUT_PULLUP); 
+  pinMode(modePin, INPUT_PULLUP); 
+
+  if(digitalRead(modePin) == LOW) {
+    mode = FLIP_ONCE;
+  }
   
   servoArm.write(20); //start in down position
   servoTilt.write(102); //start with tilt up
@@ -313,46 +387,19 @@ void loop() {
 
     case MECANUM_PICKUP_LR_PEGS:
       //use mecanum drive to pickup from left and right pegs
-      left(255); //left according to watcher
-      servoTilt.write(105);
-      servoArm.attach(armPin);
-      delay(600);
-      brake();
-      servoArm.write(20);
-      delay(500);
-      forward(255,255);
-      delay(700);
-      brake();
-      servoArm.write(160);
-      delay(400);
-      backward(255,255);
-      delay(700);
-      brake();
-      servoTilt.write(120);
-      
-      right(255); //right according to watcher
-      delay(1000);
-      servoTilt.write(105);
-      brake();
-      servoArm.write(20);
-      delay(500);
-      forward(255,255);
-      delay(700);
-      brake();
-      servoArm.write(160);
-      delay(400);
-      backward(255,255);
-      delay(700);
-      brake();
-      left(255);
-      delay(1000);
-      brake();
-      
-
+      mecanum();
       servoArm.detach();
       servoTilt.write(120);
-      state = APPROACH_FLAG;
+      if(flagFlipped && mode == FLIP_ONCE) {
+        state = SPECIAL_LEAVE_RINGS;
+      }
+      else {
+        state = APPROACH_FLAG;
+      }
       break;
+
+    case STEPPER_PICKUP_LR_PEGS:
+      
     
 
     case APPROACH_FLAG: //drive backwards
@@ -360,6 +407,7 @@ void loop() {
         state = LEAVE_FLAG;
         flip(FLIP);
         delay(500);
+        flagFlipped = 1;
       }
       break;
 
@@ -367,14 +415,14 @@ void loop() {
       if(forwardUntilChange() == CHANGE_STATE) {
         state = APPROACH_BUMP;
         flip(RESET_FLIP);
-        turnRight();
+        turnRight(1);
       }
       break;
 
-    case SPECIAL_LEAVE_RINGS: //special state to skip flag for now
+    case SPECIAL_LEAVE_RINGS: //special state to skip flag
       if(backwardUntilChange() == CHANGE_STATE) {
         state = APPROACH_BUMP;
-        turnLeft();
+        turnRight(0);
       } 
       break;
 
