@@ -3,9 +3,9 @@
 #define ONE_ROTATION 1600
 
 // Define a stepper and the pins it will use
-AccelStepper stepper(AccelStepper::DRIVER, 9, 8);
+AccelStepper stepper(AccelStepper::DRIVER, 34, 32);
 
-int pos = ONE_ROTATION * 1.1;
+int pos = ONE_ROTATION * .75;
 int sleep;
 
 void setup()
@@ -13,19 +13,19 @@ void setup()
   stepper.setMaxSpeed(3000);
   stepper.setAcceleration(1000);
 
-  pinMode(10, INPUT_PULLUP);
-  pinMode(11, OUTPUT);
+  pinMode(30, INPUT_PULLUP);
+  pinMode(36, OUTPUT);
   
   sleep = true;
-  digitalWrite(11, HIGH);
+  digitalWrite(36, HIGH);
 }
 
 void loop()
 {
-  if (!digitalRead(10)) {
+  if (!digitalRead(30)) {
     if (sleep) {
       sleep = false;
-      digitalWrite(11, HIGH);
+      digitalWrite(36, HIGH);
     }
     if (stepper.distanceToGo() == 0)
     {
@@ -38,7 +38,7 @@ void loop()
   else {
     if (!sleep) {
       sleep = true;
-      digitalWrite(11, LOW);
+      digitalWrite(36, LOW);
     }
   }
 }

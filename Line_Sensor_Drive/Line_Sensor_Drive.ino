@@ -87,7 +87,7 @@ const int offsetD = 1;
 Motor motor1 = Motor(AIN1, AIN2, PWMA, offsetA, STBY);
 Motor motor2 = Motor(BIN1, BIN2, PWMB, offsetB, STBY);
 DualMC33926MotorShield md; //use for Motor 3 and 4
-AccelStepper stepper(AccelStepper::DRIVER, 9, 8);
+AccelStepper stepper(AccelStepper::DRIVER, 34, 32);
 //Motor motor3 = Motor(CIN1, CIN2, PWMC, offsetC, STBY);
 //Motor motor4 = Motor(DIN1, DIN2, PWMD, offsetD, STBY);
 
