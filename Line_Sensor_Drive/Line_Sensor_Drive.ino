@@ -84,8 +84,8 @@ const int offsetD = 1;
 // motors as you have memory for.  If you are using functions like forward
 // that take 2 motors as arguements you can either write new functions or
 // call the function more than once.
-Motor motor1 = Motor(AIN1, AIN2, PWMA, offsetA, STBY);
-Motor motor2 = Motor(BIN1, BIN2, PWMB, offsetB, STBY);
+Motor *motor1;// = Motor(AIN1, AIN2, PWMA, offsetA, STBY);
+Motor *motor2;// = Motor(BIN1, BIN2, PWMB, offsetB, STBY);
 DualMC33926MotorShield md; //use for Motor 3 and 4
 AccelStepper stepper(AccelStepper::DRIVER, 34, 32);
 //Motor motor3 = Motor(CIN1, CIN2, PWMC, offsetC, STBY);
@@ -96,6 +96,7 @@ int flagFlipped = 0;
 int mode = FLIP_ALWAYS;
 int pos = ONE_ROTATION * 1.1;
 int sleep;
+int8_t value;
 
 const int armPin = 22;
 const int tiltPin = 24;
@@ -111,15 +112,15 @@ Servo servoTilt;
 Servo servoFlip;
 
 void brake() {
-  motor1.brake();
-  motor2.brake();
+  motor1->brake();
+  motor2->brake();
   md.setM1Speed(0);
   md.setM2Speed(0);
 }
 
 void forward(int spdL, int spdR) {
   double spdM = 0 - 1.5686 * spdL;
-  forward(motor1, motor2, spdR);
+  forward(*motor1, *motor2, spdR);
   md.setM1Speed((int)spdM);
   md.setM2Speed((int)spdM);
   //back(motor3, motor4, spdL);
@@ -129,13 +130,13 @@ void backward(int spdL, int spdR) {
   double spdM = 1.5686 * spdL;
   md.setM1Speed((int)spdM);
   md.setM2Speed((int)spdM);
-  back(motor1, motor2, spdR);
+  back(*motor1, *motor2, spdR);
 }
 void left(int spd) {
   double spdM = 1.5686 * spd;
   //forward(motor2, motor3, spd);
   //back(motor1, motor4, spd);
-  left(motor1, motor2, spd);
+  left(*motor1, *motor2, spd);
   md.setM1Speed((int)spdM);
   md.setM2Speed(0 - (int)spdM);
 }
@@ -143,20 +144,20 @@ void right(int spd) {
   double spdM = 1.5686 * spd;
   //forward(motor1, motor4, spd);
   //back(motor2, motor3, spd);
-  right(motor1, motor2, spd); 
+  right(*motor1, *motor2, spd); 
   md.setM1Speed(0 - (int)spdM);
   md.setM2Speed((int)spdM); 
 }
 void rotate_l(int spd) {
   double spdM = 1.5686 * spd;
-  forward(motor1, motor2, spd);
+  forward(*motor1, *motor2, spd);
   md.setM1Speed((int)spdM);
   md.setM2Speed((int)spdM);
   //forward(motor3, motor4, spd);
 }
 void rotate_r(int spd) {
   double spdM = 0 - 1.5686 * spd;
-  back(motor1, motor2, spd);
+  back(*motor1, *motor2, spd);
   md.setM1Speed((int)spdM);
   md.setM2Speed((int)spdM);
   //back(motor3, motor4, spd);
@@ -250,9 +251,19 @@ void turnRight(int isForward) {
   else {
     backward(255,255);
   }
-  delay(500);
-  rotate_r(200); 
-  delay(1500);
+  if(isForward) {
+    delay(500);
+  }
+  else {
+    delay(700);
+  }
+  rotate_r(200);
+  if(isForward) { 
+    delay(1500);
+  }
+  else {
+    delay(850);
+  }
   while(!(SensorBarFront.getRaw() & 1 << 5)) {
     rotate_r(255);
   }
@@ -262,12 +273,13 @@ void turnRight(int isForward) {
 
 void turnLeft() {
   backward(255,255);
-  delay(500);
+  delay(700);
   rotate_l(255);
-  delay(1500);
+  delay(1700);
   while(!(SensorBarFront.getRaw() & 1 << 4)) {
     rotate_l(255);
   }
+  delay(150);
   brake();
   delay(100);
 }
@@ -284,11 +296,11 @@ void flip(int val) {
 void lr_pickup(int style) {
     if (style == STEPPER) { //using stepper motor
        pos = ONE_ROTATION * 1.1;
+       stepper.moveTo(pos);
        while(stepper.distanceToGo() != 0) {
           stepper.run();
-          delay(1);
        }
-       pos -= ONE_ROTATION * 2.2;
+       pos = -pos;
     }
     else { //using mecanum drive
       left(255); //left according to watcher
@@ -301,21 +313,23 @@ void lr_pickup(int style) {
     servoArm.write(20);
     delay(500);
     forward(255,255);
-    delay(700);
+    delay(500);
     brake();
     servoArm.write(160);
-    delay(400);
+    delay(500);
+    servoTilt.write(110);
+    delay(500);
     backward(255,255);
-    delay(700);
+    delay(500);
     brake();
     servoTilt.write(120);
-    
+
+    stepper.moveTo(pos);
     if (style == STEPPER) {
        while(stepper.distanceToGo() != 0) {
           stepper.run();
-          delay(1);
        }
-       pos += ONE_ROTATION * 1.1;
+       pos = 0;
        
     }
     else {
@@ -327,17 +341,19 @@ void lr_pickup(int style) {
     servoArm.write(20);
     delay(500);
     forward(255,255);
-    delay(700);
+    delay(500);
     brake();
     servoArm.write(160);
     delay(400);
+    servoTilt.write(110);
+    delay(500);
     backward(255,255);
-    delay(700);
+    delay(500);
     brake();
     if (style == STEPPER) {
+       stepper.moveTo(pos);
        while(stepper.distanceToGo() != 0) {
           stepper.run();
-          delay(1);
        }
     }
     else {
@@ -351,6 +367,7 @@ void setup() {
   servoArm.attach(armPin);
   servoTilt.attach(tiltPin);
   servoFlip.attach(flipperPin);
+  brake();
   servoFlip.write(20);
   md.init();
   pinMode(buttonPin, INPUT_PULLUP); 
@@ -362,6 +379,7 @@ void setup() {
   
   servoArm.write(20); //start in down position
   servoTilt.write(102); //start with tilt up
+  brake();
   delay(200);
   Serial.begin(9600);  // start serial for output
   Serial.println("Program started.");
@@ -380,8 +398,8 @@ void setup() {
   SensorBarBack.clearInvertBits();
   //Other option: light line on dark
   //mySensorBar.setInvertBits();
-  stepper.setMaxSpeed(3000);
-  stepper.setAcceleration(1000);
+  stepper.setMaxSpeed(8000);
+  stepper.setAcceleration(2000);
   
   //Don't forget to call .begin() to get the bar ready.  This configures HW.
   uint8_t returnStatus = SensorBarFront.begin();
@@ -394,6 +412,8 @@ void setup() {
     Serial.println("sx1509 IC communication FAILED!");
     while(1);
   }
+  motor1 = new Motor(AIN1, AIN2, PWMA, offsetA, STBY);
+  motor2 = new Motor(BIN1, BIN2, PWMB, offsetB, STBY);
 }
 
 void loop() {
@@ -430,7 +450,7 @@ void loop() {
       //use mecanum drive to pickup from left and right pegs
       lr_pickup(STEPPER);
       servoArm.detach();
-      servoTilt.write(120);
+      servoTilt.write(150);
       if(flagFlipped && mode == FLIP_ONCE) {
         state = SPECIAL_LEAVE_RINGS;
       }
@@ -466,6 +486,7 @@ void loop() {
     case APPROACH_BUMP:
       if(forwardUntilChange() == CHANGE_STATE) {
         state = APPROACH_DROP;
+        servoTilt.write(120);
         forward(255, 255);
         delay(1000);
       }
@@ -479,17 +500,30 @@ void loop() {
 
     case DROP:
       forward(255,255);
-      delay(800);
+      delay(1200);
       brake();
       delay(50);
       backward(50,50);
       delay(150);
       brake();
+      value = SensorBarBack.getPosition();
+      pos = value * -6;
+      if(abs(value) > 50) {
+        stepper.moveTo(pos);
+        while(stepper.distanceToGo() != 0) {
+            stepper.run();
+        }
+      }
       for (int i = 0; i <= 0; i++) {
         servoTilt.write(80);
         delay(1000);
         servoTilt.write(102);
         delay(1000);
+      }
+      pos = 0;
+      stepper.moveTo(pos);
+      while(stepper.distanceToGo() != 0) {
+          stepper.run();
       }
       backward(255,255);
       delay(1000);
