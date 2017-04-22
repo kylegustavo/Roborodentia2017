@@ -1,45 +1,44 @@
- //Declare pin functions on Redboard
-#define stp 32
-#define dir 33
-#define MS1 34
-#define MS2 35
-#define EN  36
+#include <AccelStepper.h>
 
-//Declare variables for functions
-char user_input;
-int x;
-int y;
-int state;
+#define ONE_ROTATION 1600
 
-//Reset Easy Driver pins to default states
-void resetEDPins()
+// Define a stepper and the pins it will use
+AccelStepper stepper(AccelStepper::DRIVER, 9, 8);
+
+int pos = ONE_ROTATION * 1.1;
+int sleep;
+
+void setup()
+{  
+  stepper.setMaxSpeed(3000);
+  stepper.setAcceleration(1000);
+
+  pinMode(10, INPUT_PULLUP);
+  pinMode(11, OUTPUT);
+  
+  sleep = true;
+  digitalWrite(11, HIGH);
+}
+
+void loop()
 {
-  digitalWrite(stp, LOW);
-  digitalWrite(dir, LOW);
-  digitalWrite(MS1, LOW);
-  digitalWrite(MS2, LOW);
-  digitalWrite(EN, HIGH);
-}
-
-void setup() {
-  // put your setup code here, to run once:
-  pinMode(stp, OUTPUT);
-  pinMode(dir, OUTPUT);
-  pinMode(MS1, OUTPUT);
-  pinMode(MS2, OUTPUT);
-  pinMode(EN, OUTPUT);
-  resetEDPins(); //Set step, direction, microstep and enable pins to default states
-}
-
-void loop() {
-  // put your main code here, to run repeatedly:
-  digitalWrite(dir, LOW); //Pull direction pin low to move "forward"
-  for(x= 1; x<1000; x++)  //Loop the forward stepping enough times for motion to be visible
-  {
-    digitalWrite(stp,HIGH); //Trigger one step forward
-    delay(1);
-    digitalWrite(stp,LOW); //Pull step pin low so it can be triggered again
-    delay(1);
+  if (!digitalRead(10)) {
+    if (sleep) {
+      sleep = false;
+      digitalWrite(11, HIGH);
+    }
+    if (stepper.distanceToGo() == 0)
+    {
+      delay(500);
+      pos = -pos;
+      stepper.moveTo(pos);
+    }
+    stepper.run();
   }
-  delay(500);
+  else {
+    if (!sleep) {
+      sleep = true;
+      digitalWrite(11, LOW);
+    }
+  }
 }
