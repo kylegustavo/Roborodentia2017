@@ -98,7 +98,8 @@ int pos = ONE_ROTATION * 1.1;
 int sleep;
 int8_t value;
 
-const int armPin = 22;
+const int armPin = 31;
+const int armPinL = 22;
 const int tiltPin = 24;
 const int buttonPin = 26;
 const int flipperPin = 28;
@@ -108,6 +109,7 @@ const int stepperStep = 34;
 const int stepperSleep = 36;
  
 Servo servoArm;
+Servo servoArmL;
 Servo servoTilt;
 Servo servoFlip;
 
@@ -275,11 +277,11 @@ void turnLeft() {
   backward(255,255);
   delay(700);
   rotate_l(255);
-  delay(1700);
+  delay(1000);
   while(!(SensorBarFront.getRaw() & 1 << 4)) {
     rotate_l(255);
   }
-  delay(150);
+  delay(300);
   brake();
   delay(100);
 }
@@ -308,14 +310,15 @@ void lr_pickup(int style) {
     }
     servoTilt.write(105);
     servoArm.attach(armPin);
+    servoArmL.attach(armPinL);
     delay(600);
     brake();
-    servoArm.write(20);
+    servoArmL.write(160);
     delay(500);
     forward(255,255);
     delay(500);
     brake();
-    servoArm.write(160);
+    servoArmL.write(20);
     delay(500);
     servoTilt.write(110);
     delay(500);
@@ -365,6 +368,7 @@ void lr_pickup(int style) {
 
 void setup() {
   servoArm.attach(armPin);
+  servoArm.attach(armPin);
   servoTilt.attach(tiltPin);
   servoFlip.attach(flipperPin);
   brake();
@@ -378,7 +382,8 @@ void setup() {
   }
   
   servoArm.write(20); //start in down position
-  servoTilt.write(102); //start with tilt up
+  servoArmL.write(160); //start in down position
+  servoTilt.write(104); //start with tilt up
   brake();
   delay(200);
   Serial.begin(9600);  // start serial for output
@@ -432,6 +437,7 @@ void loop() {
       brake();
       delay(200);
       servoArm.attach(armPin);
+      servoArmL.attach(armPinL);
       servoArm.write(160);
       /*add stepper motor or left/right movement */
       delay(1000);
@@ -450,6 +456,7 @@ void loop() {
       //use mecanum drive to pickup from left and right pegs
       lr_pickup(STEPPER);
       servoArm.detach();
+      servoArmL.detach();
       servoTilt.write(150);
       if(flagFlipped && mode == FLIP_ONCE) {
         state = SPECIAL_LEAVE_RINGS;
@@ -506,9 +513,13 @@ void loop() {
       backward(50,50);
       delay(150);
       brake();
-      value = SensorBarBack.getPosition();
-      pos = value * -6;
-      if(abs(value) > 50) {
+      value = SensorBarFront.getPosition();
+      pos = value * -9.32;
+      Serial.print("Val: ");
+      Serial.println(value);
+      Serial.print("Pos: ");
+      Serial.println(pos);
+      if(abs(value) > 30) {
         stepper.moveTo(pos);
         while(stepper.distanceToGo() != 0) {
             stepper.run();
@@ -546,6 +557,9 @@ void loop() {
         turnLeft();
         servoArm.attach(armPin);
         servoArm.write(20);
+        servoArmL.attach(armPinL);
+        servoArmL.write(160);
+        servoTilt.write(104);
         delay(200);
       }
       break;
